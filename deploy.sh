@@ -130,7 +130,7 @@ gcloud run deploy vertex-twilio-gateway \
   --set-env-vars "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" \
   --set-env-vars "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" \
   --set-env-vars "VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-us-central1}" \
-  --set-env-vars "VERTEX_AI_MODEL=${VERTEX_AI_MODEL:-gemini-2.0-flash-exp}" \
+  --set-env-vars "VERTEX_AI_LIVE_MODEL=${VERTEX_AI_LIVE_MODEL:-gemini-2.0-flash-exp}" \
   --set-env-vars "NODE_ENV=production"
 
 # Get the deployed URL

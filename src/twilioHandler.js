@@ -3,6 +3,7 @@ const WebSocket = require('ws');
 const { parse } = require('url'); // Required for extracting CallSid from URL
 const vertexLiveClient = require('./vertexLiveClient');
 const transcriptLogger = require('./transcriptLogger');
+const audioProcessor = require('./audioProcessor');
 
 
 class TwilioMediaStreamHandler {
@@ -16,94 +17,131 @@ class TwilioMediaStreamHandler {
     }
 
     handleConnection(ws, req) {
-        // 1. Extract callSid from the WebSocket upgrade request URL (query parameters)
-        const query = parse(req.url, true).query;
-        const callSid = query.CallSid; // Get CallSid from the query parameters
+        try {
+            // 1. Extract callSid from the WebSocket upgrade request URL (query parameters)
+            const query = parse(req.url, true).query;
+            const callSid = query.CallSid; // Get CallSid from the query parameters
 
-        if (!callSid) {
-            console.error('❌ WebSocket connection rejected: CallSid missing in request parameters.');
-            ws.close(1008, 'Missing CallSid');
-            return;
+            if (!callSid) {
+                console.error('❌ WebSocket connection rejected: CallSid missing in request parameters.');
+                ws.close(1008, 'Missing CallSid');
+                return;
+            }
+
+            console.log(`🔌 New WebSocket connection for CallSid: ${callSid}`);
+
+            // 2. Store the connection data
+            this.connections.set(callSid, { 
+                ws, 
+                streamSid: null, 
+                callMetadata: {},
+                startTime: Date.now(),
+                isActive: true
+            });
+
+            // 3. Bind the message handler with the specific callSid
+            ws.on('message', this.handleMessage.bind(this, ws, callSid));
+            
+            ws.on('close', (code, reason) => {
+                console.log(`🔌 WebSocket closed for ${callSid} (code: ${code}, reason: ${reason})`);
+                this.handleWebSocketClose(callSid);
+            });
+            
+            ws.on('error', (error) => {
+                console.error(`❌ WS Error for ${callSid}:`, error);
+                this.handleWebSocketClose(callSid);
+            });
+
+            // Set connection timeout
+            setTimeout(() => {
+                const conn = this.connections.get(callSid);
+                if (conn && conn.isActive && !conn.streamSid) {
+                    console.warn(`⏰ Connection timeout for ${callSid}, closing`);
+                    ws.close(1000, 'Connection timeout');
+                }
+            }, 30000); // 30 second timeout
+
+        } catch (error) {
+            console.error('❌ Error in handleConnection:', error);
+            ws.close(1011, 'Internal error');
         }
-
-        console.log(`🔌 New WebSocket connection for CallSid: ${callSid}`);
-
-        // 2. Store the connection data
-        this.connections.set(callSid, { ws, streamSid: null, callMetadata: {} });
-
-        // 3. Bind the message handler with the specific callSid
-        ws.on('message', this.handleMessage.bind(this, ws, callSid));
-        
-        ws.on('close', () => this.handleWebSocketClose(callSid));
-        ws.on('error', (error) => console.error(`❌ WS Error for ${callSid}:`, error));
     }
 
     /**
      * Handle incoming messages from Twilio
      */
     async handleMessage(ws, callSid, message) {
-        const msg = JSON.parse(message);
-        const conn = this.connections.get(callSid);
+        try {
+            const msg = JSON.parse(message);
+            const conn = this.connections.get(callSid);
 
-        if (!conn) {
-             console.warn(`⚠️ Received message for unknown CallSid: ${callSid}`);
-             return;
-        }
+            if (!conn) {
+                console.warn(`⚠️ Received message for unknown CallSid: ${callSid}`);
+                return;
+            }
 
-        switch (msg.event) {
-            case 'connected':
-                console.log(`🔥 Stream connected for call: ${callSid}`);
-                
-                const callMetadata = {
-                    // Pull from 'From'/'To' parameters if passed in the URL (TwiML <Parameter>)
-                    from: conn.callMetadata.from || msg.From, 
-                    to: conn.callMetadata.to || msg.To
-                };
-                conn.callMetadata = callMetadata;
-                
-                // --- VERTEX LIVE API INTEGRATION ---
-                try {
-                    await vertexLiveClient.createSession(
-                        callSid, 
-                        // onAudioResponse: sends AI audio back to Twilio
-                        (audioBase64) => this.sendAudioToTwilio(callSid, conn.streamSid, audioBase64, ws),
-                        // onTranscript: logs partial/final transcripts (optional)
-                        (transcriptPart) => console.log(`[Transcript ${transcriptPart.isFinal ? 'F' : 'P'}]: ${transcriptPart.text}`)
-                    );
-                } catch (error) {
-                    console.error('❌ Failed to create Live Stream session:', error);
-                    ws.close(1011, 'AI Stream Error');
-                }
-                // --------------------------------
-                
-                break;
+            console.log(`📨 Received ${msg.event} event for ${callSid}`);
 
-            case 'start':
-                console.log(`🎙️ Stream started for call: ${callSid}`);
-                conn.streamSid = msg.streamSid; // Store the streamSid for media frames
-                break;
+            switch (msg.event) {
+                case 'connected':
+                    console.log(`🔥 Stream connected for call: ${callSid}`);
+                    
+                    const callMetadata = {
+                        // Pull from 'From'/'To' parameters if passed in the URL (TwiML <Parameter>)
+                        from: conn.callMetadata.from || msg.From, 
+                        to: conn.callMetadata.to || msg.To
+                    };
+                    conn.callMetadata = callMetadata;
+                    
+                    // --- VERTEX LIVE API INTEGRATION ---
+                    try {
+                        await vertexLiveClient.createSession(
+                            callSid, 
+                            // onAudioResponse: sends AI audio back to Twilio
+                            (audioBase64) => this.sendAudioToTwilio(callSid, conn.streamSid, audioBase64, ws),
+                            // onTranscript: logs partial/final transcripts (optional)
+                            (transcriptPart) => console.log(`[Transcript ${transcriptPart.isFinal ? 'F' : 'P'}]: ${transcriptPart.text}`)
+                        );
+                        console.log(`✅ Vertex AI session created for ${callSid}`);
+                    } catch (error) {
+                        console.error('❌ Failed to create Live Stream session:', error);
+                        ws.close(1011, 'AI Stream Error');
+                    }
+                    // --------------------------------
+                    
+                    break;
 
-            case 'media':
-                // --- VERTEX LIVE API INTEGRATION ---
-                if (msg.media && msg.media.payload) {
-                    // Send Twilio mulaw audio chunk directly to the Vertex Live Stream
-                    vertexLiveClient.processAudio(callSid, msg.media.payload);
-                }
-                // --------------------------------
-                break;
+                case 'start':
+                    console.log(`🎙️ Stream started for call: ${callSid}`);
+                    conn.streamSid = msg.streamSid; // Store the streamSid for media frames
+                    break;
 
-            case 'stop':
-                console.log(`🛑 Stop received for call: ${callSid}`);
-                await this.handleCallEnd(callSid, conn.callMetadata);
-                break;
+                case 'media':
+                    // --- VERTEX LIVE API INTEGRATION ---
+                    if (msg.media && msg.media.payload) {
+                        console.log(`🎵 Received audio chunk for ${callSid} (${msg.media.payload.length} bytes)`);
+                        // Send Twilio mulaw audio chunk to the Vertex Live Stream
+                        vertexLiveClient.processAudio(callSid, msg.media.payload);
+                    }
+                    // --------------------------------
+                    break;
 
-            case 'error':
-                console.error(`🚨 Twilio Media Stream Error for ${callSid}:`, msg);
-                await this.handleCallEnd(callSid, conn.callMetadata);
-                break;
+                case 'stop':
+                    console.log(`🛑 Stop received for call: ${callSid}`);
+                    await this.handleCallEnd(callSid, conn.callMetadata);
+                    break;
 
-            default:
-                break;
+                case 'error':
+                    console.error(`🚨 Twilio Media Stream Error for ${callSid}:`, msg);
+                    await this.handleCallEnd(callSid, conn.callMetadata);
+                    break;
+
+                default:
+                    console.log(`ℹ️ Unknown event type: ${msg.event} for ${callSid}`);
+                    break;
+            }
+        } catch (error) {
+            console.error(`❌ Error handling message for ${callSid}:`, error);
         }
     }
 

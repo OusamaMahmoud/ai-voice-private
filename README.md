@@ -85,8 +85,12 @@ TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_AUTH_TOKEN=your_auth_token
 TWILIO_PHONE_NUMBER=+13348888892
 
-# Server port (use 3000 for local, or your deployment port)
-PORT=3000
+# Server port (use 8080 for Cloud Run)
+PORT=8080
+
+# Vertex AI settings
+VERTEX_AI_LOCATION=us-central1
+VERTEX_AI_LIVE_MODEL=gemini-2.0-flash-exp
 ```
 
 ### Step 5: Test Locally
@@ -117,7 +121,17 @@ curl -X POST http://localhost:3000/test-ai \
 # Follow instructions at: https://cloud.google.com/sdk/docs/install
 ```
 
-**Deploy:**
+**Deploy using the provided script:**
+
+```bash
+# Make the script executable
+chmod +x deploy.sh
+
+# Run the deployment script
+./deploy.sh
+```
+
+**Or deploy manually:**
 
 ```bash
 # Login to GCP
@@ -126,16 +140,21 @@ gcloud auth login
 # Set your project
 gcloud config set project YOUR_PROJECT_ID
 
-# Deploy to Cloud Run (recommended)
+# Deploy to Cloud Run
 gcloud run deploy vertex-twilio-gateway \
   --source . \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
+  --memory 1Gi \
+  --cpu 1 \
+  --timeout 3600 \
   --set-env-vars "GOOGLE_CLOUD_PROJECT=YOUR_PROJECT_ID" \
   --set-env-vars "TWILIO_ACCOUNT_SID=YOUR_TWILIO_SID" \
   --set-env-vars "TWILIO_AUTH_TOKEN=YOUR_TWILIO_TOKEN" \
-  --set-env-vars "TWILIO_PHONE_NUMBER=+13348888892"
+  --set-env-vars "TWILIO_PHONE_NUMBER=+13348888892" \
+  --set-env-vars "VERTEX_AI_LOCATION=us-central1" \
+  --set-env-vars "VERTEX_AI_LIVE_MODEL=gemini-2.0-flash-exp"
 
 # Note your deployed URL (e.g., https://vertex-twilio-gateway-xxx.run.app)
 ```

@@ -2,9 +2,11 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
+const helmet = require('helmet');
+const cors = require('cors');
 const config = require('../config/config');
 const TwilioMediaStreamHandler = require('./twilioHandler');
-const vertexClient = require('./vertexLiveClient'); // Use the new file name
+const vertexClient = require('./vertexLiveClient');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,8 +16,16 @@ const wss = new WebSocket.Server({ server, path: '/media-stream' });
 const twilioHandler = new TwilioMediaStreamHandler(wss);
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet());
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - IP: ${req.ip}`);
+  next();
+});
 
 /**
  * Health check endpoint
@@ -31,25 +41,35 @@ app.get('/health', (req, res) => {
 
 /**
  * TwiML endpoint - Twilio calls this when a call comes in
- * FIX: Inject CallSid into the WebSocket URL query string.
  */
 app.post('/voice', (req, res) => {
- console.log('📞 Incoming call from:', req.body.From);
- const callSid = req.body.CallSid;
- 
- // Generate TwiML response
- const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+ try {
+  console.log('📞 Incoming call from:', req.body.From);
+  const callSid = req.body.CallSid;
+  
+  if (!callSid) {
+   console.error('❌ Missing CallSid in voice request');
+   return res.status(400).send('Missing CallSid');
+  }
+  
+  // Generate TwiML response
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
  <Connect>
   <Stream url="wss://${req.get('host')}/media-stream?CallSid=${callSid}">
-   <Parameter name="From" value="${req.body.From}" />
-   <Parameter name="To" value="${req.body.To}" />
+   <Parameter name="From" value="${req.body.From || 'Unknown'}" />
+   <Parameter name="To" value="${req.body.To || config.twilio.phoneNumber}" />
   </Stream>
  </Connect>
 </Response>`;
 
- res.type('text/xml');
- res.send(twiml);
+  res.type('text/xml');
+  res.send(twiml);
+  console.log(`✅ TwiML response sent for call: ${callSid}`);
+ } catch (error) {
+  console.error('❌ Error in voice endpoint:', error);
+  res.status(500).send('Internal Server Error');
+ }
 });
 
 /**
@@ -113,15 +133,45 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
- console.error('Server error:', err);
+ console.error('❌ Server error:', {
+  error: err.message,
+  stack: err.stack,
+  url: req.url,
+  method: req.method,
+  timestamp: new Date().toISOString()
+ });
+ 
  res.status(500).json({
   error: 'Internal Server Error',
-  message: err.message
+  message: process.env.NODE_ENV === 'production' ? 'Something went wrong' : err.message,
+  timestamp: new Date().toISOString()
  });
 });
 
 // Start the server
 server.listen(config.server.port, () => {
  console.log(`🚀 Gateway Server running on port ${config.server.port}`);
- console.log(`GCP Project: ${config.vertexAI.projectId} in ${config.vertexAI.location}`);
+ console.log(`🌍 Environment: ${config.server.nodeEnv}`);
+ console.log(`🔧 GCP Project: ${config.vertexAI.projectId} in ${config.vertexAI.location}`);
+ console.log(`📞 Twilio Phone: ${config.twilio.phoneNumber}`);
+ console.log(`🤖 AI Model: ${config.vertexAI.liveModel}`);
+ console.log(`📁 Log Directory: ${config.app.logDirectory}`);
+ console.log('✅ Server is ready to accept calls!');
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+ console.log('🛑 SIGTERM received, shutting down gracefully');
+ server.close(() => {
+  console.log('✅ Server closed');
+  process.exit(0);
+ });
+});
+
+process.on('SIGINT', () => {
+ console.log('🛑 SIGINT received, shutting down gracefully');
+ server.close(() => {
+  console.log('✅ Server closed');
+  process.exit(0);
+ });
 });

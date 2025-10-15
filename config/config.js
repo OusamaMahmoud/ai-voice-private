@@ -13,8 +13,8 @@ const config = {
  vertexAI: {
   projectId: process.env.GOOGLE_CLOUD_PROJECT,
   location: process.env.VERTEX_AI_LOCATION || 'us-central1',
-  // Use the specific model for live audio streams (check GCP documentation for exact name)
-  liveModel: process.env.VERTEX_AI_LIVE_MODEL || 'gemini-1.5-flash',
+  // Use the correct model for live audio streams
+  liveModel: process.env.VERTEX_AI_LIVE_MODEL || 'gemini-2.0-flash-exp',
   credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
 
   // System instruction for the AI assistant
@@ -60,14 +60,29 @@ function validateConfig() {
  const required = [
   'GOOGLE_CLOUD_PROJECT',
   'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN'
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_PHONE_NUMBER'
  ];
 
  const missing = required.filter(key => !process.env[key]);
 
  if (missing.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+  console.error('Please check your .env file and ensure all required variables are set.');
   throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
  }
+
+ // Validate Google Cloud Project ID format
+ if (process.env.GOOGLE_CLOUD_PROJECT && !/^[a-z0-9-]+$/.test(process.env.GOOGLE_CLOUD_PROJECT)) {
+  throw new Error('Invalid GOOGLE_CLOUD_PROJECT format. Must contain only lowercase letters, numbers, and hyphens.');
+ }
+
+ // Validate Twilio Account SID format
+ if (process.env.TWILIO_ACCOUNT_SID && !/^AC[a-f0-9]{32}$/.test(process.env.TWILIO_ACCOUNT_SID)) {
+  throw new Error('Invalid TWILIO_ACCOUNT_SID format. Must start with AC followed by 32 hexadecimal characters.');
+ }
+
+ console.log('✅ Configuration validation passed');
 }
 
 validateConfig();
