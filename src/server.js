@@ -148,16 +148,31 @@ app.use((err, req, res, next) => {
  });
 });
 
-// Start the server
-server.listen(config.server.port, () => {
- console.log(`🚀 Gateway Server running on port ${config.server.port}`);
- console.log(`🌍 Environment: ${config.server.nodeEnv}`);
- console.log(`🔧 GCP Project: ${config.vertexAI.projectId} in ${config.vertexAI.location}`);
- console.log(`📞 Twilio Phone: ${config.twilio.phoneNumber}`);
- console.log(`🤖 AI Model: ${config.vertexAI.liveModel}`);
- console.log(`📁 Log Directory: ${config.app.logDirectory}`);
- console.log('✅ Server is ready to accept calls!');
+// Start the server with automatic port detection
+const startServer = (port) => {
+ server.listen(port, () => {
+  console.log(`🚀 Gateway Server running on port ${port}`);
+  console.log(`🌍 Environment: ${config.server.nodeEnv}`);
+  console.log(`🔧 GCP Project: ${config.vertexAI.projectId} in ${config.vertexAI.location}`);
+  console.log(`📞 Twilio Phone: ${config.twilio.phoneNumber}`);
+  console.log(`🤖 AI Model: ${config.vertexAI.liveModel}`);
+  console.log(`📁 Log Directory: ${config.app.logDirectory}`);
+  console.log('✅ Server is ready to accept calls!');
+ });
+};
+
+// Try to start on the configured port, with fallback
+server.on('error', (err) => {
+ if (err.code === 'EADDRINUSE') {
+  console.log(`⚠️ Port ${config.server.port} is in use, trying port ${config.server.port + 1}...`);
+  startServer(config.server.port + 1);
+ } else {
+  console.error('❌ Server error:', err);
+  process.exit(1);
+ }
 });
+
+startServer(config.server.port);
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
