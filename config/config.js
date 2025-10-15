@@ -12,7 +12,7 @@ const config = {
  // Google Cloud / Vertex AI settings
  vertexAI: {
   projectId: process.env.GOOGLE_CLOUD_PROJECT,
-  location: process.env.VERTEX_AI_LOCATION || 'us-central1',
+  location: process.env.VERTEX_AI_LOCATION || 'europe-west2',
   // Use the correct model for live audio streams
   liveModel: process.env.VERTEX_AI_LIVE_MODEL || 'gemini-2.0-flash-exp',
   credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,

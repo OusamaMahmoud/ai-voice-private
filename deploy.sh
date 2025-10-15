@@ -47,7 +47,7 @@ echo ""
 echo "📋 Deployment Configuration:"
 echo "   Project: $GOOGLE_CLOUD_PROJECT"
 echo "   Phone: $TWILIO_PHONE_NUMBER"
-echo "   Region: ${VERTEX_AI_LOCATION:-us-central1}"
+echo "   Region: ${VERTEX_AI_LOCATION:-europe-west2}"
 echo ""
 
 read -p "Continue with deployment? (y/n) " -n 1 -r
@@ -118,7 +118,7 @@ echo -e "${YELLOW}🏗️  Building and deploying to Cloud Run...${NC}"
 gcloud run deploy vertex-twilio-gateway \
   --source . \
   --platform managed \
-  --region ${VERTEX_AI_LOCATION:-us-central1} \
+  --region ${VERTEX_AI_LOCATION:-europe-west2} \
   --project carpass-ai \
   --allow-unauthenticated \
   --port 8080 \
@@ -129,13 +129,13 @@ gcloud run deploy vertex-twilio-gateway \
   --set-env-vars "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" \
   --set-env-vars "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" \
   --set-env-vars "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" \
-  --set-env-vars "VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-us-central1}" \
+  --set-env-vars "VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-europe-west2}" \
   --set-env-vars "VERTEX_AI_LIVE_MODEL=${VERTEX_AI_LIVE_MODEL:-gemini-2.0-flash-exp}" \
   --set-env-vars "NODE_ENV=production"
 
 # Get the deployed URL
 SERVICE_URL=$(gcloud run services describe vertex-twilio-gateway \
-  --region ${VERTEX_AI_LOCATION:-us-central1} \
+  --region ${VERTEX_AI_LOCATION:-europe-west2} \
   --format 'value(status.url)')
 
 echo ""
@@ -153,6 +153,6 @@ echo ""
 echo -e "${YELLOW}🔗 Quick Links:${NC}"
 echo "   Health Check: ${SERVICE_URL}/health"
 echo "   Twilio Console: https://console.twilio.com/us1/develop/phone-numbers/manage/incoming"
-echo "   Cloud Run Logs: https://console.cloud.google.com/run/detail/${VERTEX_AI_LOCATION:-us-central1}/vertex-twilio-gateway/logs"
+echo "   Cloud Run Logs: https://console.cloud.google.com/run/detail/${VERTEX_AI_LOCATION:-europe-west2}/vertex-twilio-gateway/logs"
 echo ""
 echo -e "${GREEN}Happy calling! 🎉${NC}"
