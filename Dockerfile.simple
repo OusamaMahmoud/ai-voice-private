@@ -1,0 +1,27 @@
+# Simple Dockerfile for Cloud Run
+FROM node:18-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy source code
+COPY . .
+
+# Create logs directory
+RUN mkdir -p logs/transcripts
+
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Start application
+CMD ["node", "src/server.js"]

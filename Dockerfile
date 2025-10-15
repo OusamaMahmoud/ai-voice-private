@@ -12,13 +12,12 @@ RUN apt-get update && apt-get install -y \
 # Copy package files first (for better caching)
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci
+# Install production dependencies only
+RUN npm ci --only=production
 
 # Copy application source code
 COPY src/ ./src/
 COPY config/ ./config/
-COPY .env ./
 
 # Create logs directory
 RUN mkdir -p logs/transcripts
