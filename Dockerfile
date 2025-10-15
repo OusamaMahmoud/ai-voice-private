@@ -4,21 +4,33 @@ FROM node:18-slim
 # Set working directory in container
 WORKDIR /app
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy package files first (for better caching)
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
 
 # Copy application source code
 COPY src/ ./src/
 COPY config/ ./config/
+COPY .env ./
 
 # Create logs directory
 RUN mkdir -p logs/transcripts
 
 # Set environment to production
 ENV NODE_ENV=production
+ENV PORT=8080
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
 
 # Expose port (Cloud Run uses PORT env variable, defaults to 8080)
 EXPOSE 8080

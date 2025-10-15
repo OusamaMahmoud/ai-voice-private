@@ -73,16 +73,22 @@ class AudioProcessor {
    * @returns {Buffer} PCM16 audio ready for Vertex AI
    */
   twilioToVertex(base64Audio) {
-    // Decode base64 to mulaw buffer
-    const mulawBuffer = Buffer.from(base64Audio, 'base64');
-    
-    // Convert mulaw to PCM16 at 8kHz
-    const pcm16_8k = this.mulawToPcm16(mulawBuffer);
-    
-    // Resample to 16kHz for Vertex AI
-    const pcm16_16k = this.resample8to16(pcm16_8k);
-    
-    return pcm16_16k;
+    try {
+      // Decode base64 to mulaw buffer
+      const mulawBuffer = Buffer.from(base64Audio, 'base64');
+      
+      // Convert mulaw to PCM16 at 8kHz
+      const pcm16_8k = this.mulawToPcm16(mulawBuffer);
+      
+      // Resample to 16kHz for Vertex AI
+      const pcm16_16k = this.resample8to16(pcm16_8k);
+      
+      console.log(`🔄 Audio conversion: ${mulawBuffer.length} bytes mulaw -> ${pcm16_16k.length} bytes PCM16`);
+      return pcm16_16k;
+    } catch (error) {
+      console.error('❌ Error converting Twilio audio to Vertex format:', error);
+      throw error;
+    }
   }
 
   /**
@@ -91,16 +97,43 @@ class AudioProcessor {
    * @returns {string} Base64 encoded mulaw audio for Twilio
    */
   vertexToTwilio(pcm16Buffer) {
-    // For simplicity, we'll downsample and convert to mulaw
-    // In production, you might want a more sophisticated conversion
-    const mulawBuffer = Buffer.alloc(pcm16Buffer.length / 2);
-    
-    for (let i = 0; i < mulawBuffer.length; i++) {
-      const linear = pcm16Buffer.readInt16LE(i * 2);
-      mulawBuffer[i] = this.linearToMulaw(linear);
+    try {
+      // Downsample from 16kHz to 8kHz first
+      const downsampledBuffer = this.downsample16to8(pcm16Buffer);
+      
+      // Convert to mulaw
+      const mulawBuffer = Buffer.alloc(downsampledBuffer.length / 2);
+      
+      for (let i = 0; i < mulawBuffer.length; i++) {
+        const linear = downsampledBuffer.readInt16LE(i * 2);
+        mulawBuffer[i] = this.linearToMulaw(linear);
+      }
+      
+      console.log(`🔄 Audio conversion: ${pcm16Buffer.length} bytes PCM16 -> ${mulawBuffer.length} bytes mulaw`);
+      return mulawBuffer.toString('base64');
+    } catch (error) {
+      console.error('❌ Error converting Vertex audio to Twilio format:', error);
+      throw error;
     }
-    
-    return mulawBuffer.toString('base64');
+  }
+
+  /**
+   * Downsample audio from 16kHz to 8kHz
+   * @param {Buffer} pcm16Buffer - PCM16 at 16kHz
+   * @returns {Buffer} PCM16 at 8kHz
+   */
+  downsample16to8(pcm16Buffer) {
+    const samples16k = pcm16Buffer.length / 2;
+    const samples8k = Math.floor(samples16k / 2);
+    const output = Buffer.alloc(samples8k * 2);
+
+    for (let i = 0; i < samples8k; i++) {
+      const srcIndex = i * 2;
+      const sample = pcm16Buffer.readInt16LE(srcIndex * 2);
+      output.writeInt16LE(sample, i * 2);
+    }
+
+    return output;
   }
 
   /**

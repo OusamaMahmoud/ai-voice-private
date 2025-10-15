@@ -2,6 +2,7 @@ node_modules
 npm-debug.log
 .env
 .env.local
+.env.example
 .git
 .gitignore
 README.md
@@ -9,3 +10,7 @@ logs/
 *.md
 .vscode/
 .idea/
+.DS_Store
+coverage/
+.nyc_output/
+*.log
