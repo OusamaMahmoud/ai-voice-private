@@ -1,0 +1,33 @@
+{
+  "name": "vertex-ai-twilio-gateway",
+  "version": "2.0.0",
+  "description": "Car dealership AI phone assistant using Vertex AI Live API and Twilio - Voice-to-Voice",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "keywords": [
+    "twilio",
+    "vertex-ai",
+    "voice",
+    "ai-assistant",
+    "multimodal-live"
+  ],
+  "author": "Carpass Motors",
+  "license": "MIT",
+  "dependencies": {
+    "@google-cloud/vertexai": "^1.7.0",
+    "google-auth-library": "^9.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "uuid": "^9.0.1",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
