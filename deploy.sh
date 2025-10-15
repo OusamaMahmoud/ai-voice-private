@@ -115,23 +115,44 @@ fi
 
 # Build and deploy to Cloud Run
 echo -e "${YELLOW}🏗️  Building and deploying to Cloud Run...${NC}"
-gcloud run deploy vertex-twilio-gateway \
-  --source . \
-  --platform managed \
-  --region ${VERTEX_AI_LOCATION:-europe-west2} \
-  --project carpass-ai \
-  --allow-unauthenticated \
-  --port 8080 \
-  --memory 512Mi \
-  --cpu 1 \
-  --timeout 300 \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT" \
-  --set-env-vars "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" \
-  --set-env-vars "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" \
-  --set-env-vars "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" \
-  --set-env-vars "VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-europe-west2}" \
-  --set-env-vars "VERTEX_AI_LIVE_MODEL=${VERTEX_AI_LIVE_MODEL:-gemini-2.0-flash-exp}" \
-  --set-env-vars "NODE_ENV=production"
+
+# Try deployment with retry logic
+for attempt in 1 2 3; do
+  echo -e "${YELLOW}Attempt $attempt of 3...${NC}"
+  
+  if gcloud run deploy vertex-twilio-gateway \
+    --source . \
+    --platform managed \
+    --region ${VERTEX_AI_LOCATION:-europe-west2} \
+    --project carpass-ai \
+    --allow-unauthenticated \
+    --port 8080 \
+    --memory 512Mi \
+    --cpu 1 \
+    --timeout 300 \
+    --set-env-vars "GOOGLE_CLOUD_PROJECT=$GOOGLE_CLOUD_PROJECT" \
+    --set-env-vars "TWILIO_ACCOUNT_SID=$TWILIO_ACCOUNT_SID" \
+    --set-env-vars "TWILIO_AUTH_TOKEN=$TWILIO_AUTH_TOKEN" \
+    --set-env-vars "TWILIO_PHONE_NUMBER=$TWILIO_PHONE_NUMBER" \
+    --set-env-vars "VERTEX_AI_LOCATION=${VERTEX_AI_LOCATION:-europe-west2}" \
+    --set-env-vars "VERTEX_AI_LIVE_MODEL=${VERTEX_AI_LIVE_MODEL:-gemini-2.0-flash-exp}" \
+    --set-env-vars "NODE_ENV=production"; then
+    echo -e "${GREEN}✅ Deployment successful on attempt $attempt!${NC}"
+    break
+  else
+    echo -e "${RED}❌ Attempt $attempt failed${NC}"
+    if [ $attempt -eq 3 ]; then
+      echo -e "${RED}❌ All deployment attempts failed${NC}"
+      echo -e "${YELLOW}💡 Try these troubleshooting steps:${NC}"
+      echo "1. Check build logs: gcloud builds list --limit=1"
+      echo "2. Try building locally: docker build -t test ."
+      echo "3. Check your .env file has correct values"
+      exit 1
+    fi
+    echo -e "${YELLOW}⏳ Waiting 10 seconds before retry...${NC}"
+    sleep 10
+  fi
+done
 
 # Get the deployed URL
 SERVICE_URL=$(gcloud run services describe vertex-twilio-gateway \
